@@ -64,7 +64,7 @@ func main() {
   // Custom field name mapping; distAttrName => srcAttrName
   src := &a{AName: "a"}
   dist := &b{}
-  copier.Copy(src, dist, map[string]string{"BName": "AName"})
+  copier.CopyWithMapping(src, dist, map[string]string{"BName": "AName"})
   // dist: b{BName: "a"}
 }
 ```
