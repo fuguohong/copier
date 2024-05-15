@@ -1,89 +1,84 @@
+English | [简体中文](README-CN.md)
+
 # copier
-便捷复制工具，复制结构体，切片，基础变量等
-
-[TOC]
-
-## 背景
-
-编写go代码时可能会遇到大量结构相同或非常相似的struct/slice需要相互转换，尤其是在使用rpc的时候，在各个垂直分层中传递数据，可能不同层级的数据结构几乎是一致的，但是因为是不同的proto,
-生成的也是不同的结构体，不能直接使用。 这时候就要写大量a.name = b.name的转换代码，当字段数量很多并且结构存在嵌套时非常痛苦。 顾编写了这个工具用于做结构复制。
-
-在做结构复制时，为了表示相同的信息，两边定义的字段类型却可能不同；例如时间，一边定义了uint64，一边定义为time， 所以需要支持自定义的类型转换规则，允许跨类型转换
+copy tool for copying structs, slices, and basic variables.
 
 
+## Background
 
-## 特性
+When writing Go code, you may come across a large number of structs or slices that have the same or very similar structures and need to be converted between each other. This is especially true when using RPC, where data needs to be passed between different vertical layers, and the data structures in different layers are almost identical but cannot be used directly due to different protos generating different structs. In such cases, you end up writing a lot of conversion code like `a.name = b.name`, which can be painful when dealing with a large number of fields and nested structures. To address this, the copier tool was developed for struct copying.
 
-- 复制相同名称的结构体字段
-- 递归复制结构体，默认最大5层
-- 复制切片
-- 数值类型互换。注意：高精度往低精度复制时精度丢失问题
-- 跨类型互转。内置uint64 <-> time;不同精度的int、float转换;int<->bool;time -> string
-- 自定义转化规则
-- 自定义字段名映射
+During struct copying, the field types defined on both sides may differ to represent the same information. For example, one side may define a field as `uint64`, while the other side defines it as `time`. Therefore, copier supports custom type conversion rules to allow for cross-type conversions.
 
+## Features
 
-## 安装
+- Copy fields with the same name in structs
+- Recursive copying of structs, with a default maximum depth of 5 levels
+- Copy slices
+- Conversion between numerical types. Note: Precision loss may occur when copying from higher precision to lower precision.
+- Cross-type conversions. Built-in conversions: uint64 <-> time; int <-> bool; time -> string; conversions between int and float with different precisions; 
+- Custom conversion rules
+- Custom field name mapping
+
+## Installation
+
 ```
 go get github.com/fuguohong/copier
 ```
 
+## Usage
 
-
-## 使用说明
-
-**复制结构体**
+**Copying Structs**
 
 ```go
-type a struct{
-  Attr int
-  Sub *sub
+type a struct {
+  Attr    int
+  Sub     *sub
   BaseURL string
-  AName string
+  AName   string
 }
 
-type sub struct{
-  string Name
+type sub struct {
+  Name string
 }
 
-type b struct{
-  Attr int64
-  Sub sub
+type b struct {
+  Attr    int64
+  Sub     sub
   BaseURL string
-  BName string
+  BName   string
 }
 
-func main(){
+func main() {
   src := &a{Attr: 1, Sub: &sub{Name: "fgh"}, BaseURL: "a"}
   dist := &b{}
   copier.Copy(src, dist)
-  // dist b{Attr: 1, Sub: sub{Name: "fgh"}, BaseUrl: "a"}
-  
-  // 查找子信息获得了model，往proto主结构附加
+  // dist: b{Attr: 1, Sub: sub{Name: "fgh"}, BaseUrl: "a"}
+
+  // Attaching model to the main proto structure by fetching sub information
   proto := &a{Attr: 2}
-  sub := das.find() // get &sub{Name: "test"}
+  sub := service.FindSomething() // get &sub{Name: "test"}
   copier.Copy(sub, &proto.Sub)
-  // proto.Sub : {Name: "test"}
-  
-  
-  // 自定义字段名映射; distAttrName => srcAttrName
+  // proto.Sub: {Name: "test"}
+
+  // Custom field name mapping; distAttrName => srcAttrName
   src := &a{AName: "a"}
   dist := &b{}
   copier.Copy(src, dist, map[string]string{"BName": "AName"})
-  // dist b{BName: "a"}
+  // dist: b{BName: "a"}
 }
 ```
 
-**复制切片**
+**Copying Slices**
 
 ```go
 src := []*a{{Attr: 1}, {Attr: 2}}
 var dist []*b
 copier.Copy(src, &dist)
-// dist : []*b{{Attr: 1}, {Attr: 2}}
+// dist: []*b{{Attr: 1}, {Attr: 2}}
 ```
 
-**跨类型转换**
+**Cross-Type Conversion**
 
 ```go
 type time1 struct {
@@ -94,7 +89,7 @@ type time2 struct {
 	CreateAt uint64
 }
 
-func main(){
+func main() {
     src := &time1{CreateAt: time.Unix(123456, 0)}
     dist := &time2{}
     Copy(src, dist)
@@ -105,13 +100,12 @@ func main(){
     Copy(src, &dist)
    // dist: "2022-01-05T11:20:00+08:00"
 }
-
 ```
 
-**注册转换规则**
+**Registering Conversion Rules**
 
 ```go
-// 同类型规则会覆盖	
+// Same type rules will override
 RegisterConverter(reflect.TypeOf(time.Time{}), reflect.TypeOf(""),
     func(v interface{}) interface{} {
         r := v.(time.Time)
@@ -124,24 +118,21 @@ Copy(src, &dist)
 // dist: 2022-01-04T17:25:19+08:00
 ```
 
+## Notes
 
-## 注意事项
-
-目标地址必须是可取地址的，如果不确定目标是否可取地址，dist参数统一加上&即可
+The destination address must be a valid address. If you are unsure whether the destination is a valid address, add an `&` to the `dist` parameter.
 
 ```go
 src := &soft{Name: "TestAddr"}
 var dist *soft
-Copy(src, dist) // 失败，dist不可取地址， dist为nil
-Copy(src, &dist) // 正确，dist.Name: "TestAddr"
+Copy(src, dist) // Failed, dist is not a valid address, dist is nil
+Copy(src, &dist) // Correct, dist.Name: "TestAddr"
 ```
 
-
 ## TODO
-- map < - > struct （暂无需求）
+- map < - > struct （no demand）
 
 ## test cover
 ```
 ok      github.com/fuguohong/copier     0.329s  coverage: 100.0% of statements
 ```
-
