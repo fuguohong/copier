@@ -1,7 +1,6 @@
 package copier
 
 import (
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"reflect"
 	"time"
 )
@@ -15,7 +14,7 @@ type typeConverter struct {
 	fn   Converter
 }
 
-var converts = make([]typeConverter, 0)
+var converts = make([]typeConverter, 0, 4)
 
 // RegisterConverter 注册新的类型转换函数
 func RegisterConverter(src reflect.Type, dist reflect.Type, fn Converter) {
@@ -38,13 +37,11 @@ func RegisterConverter(src reflect.Type, dist reflect.Type, fn Converter) {
 
 func init() {
 	var (
-		TypeUint64    = reflect.TypeOf(uint64(0))
-		TypeTime      = reflect.TypeOf(time.Time{})
-		TypeTimestamp = reflect.TypeOf(*timestamppb.Now())
-		TypeString    = reflect.TypeOf("")
+		TypeUint64 = reflect.TypeOf(uint64(0))
+		TypeTime   = reflect.TypeOf(time.Time{})
+		TypeString = reflect.TypeOf("")
 
-		ZeroTime   = time.Time{}
-		TimeFormat = "2006-01-02 15:04:05"
+		ZeroTime = time.Time{}
 	)
 	RegisterConverter(TypeTime, TypeUint64, func(v interface{}) interface{} {
 		r := v.(time.Time)
@@ -62,45 +59,10 @@ func init() {
 		return time.Unix(int64(r), 0)
 	})
 
-	RegisterConverter(TypeTimestamp, TypeUint64, func(v interface{}) interface{} {
-		r := v.(timestamppb.Timestamp)
-		if r.Seconds <= 0 {
-			return uint64(0)
-		}
-		return uint64(r.Seconds)
-	})
-
-	RegisterConverter(TypeUint64, TypeTimestamp, func(v interface{}) interface{} {
-		r := v.(uint64)
-		if r == 0 {
-			return *timestamppb.New(ZeroTime)
-		}
-		return timestamppb.Timestamp{
-			Seconds: int64(r),
-			Nanos:   0,
-		}
-	})
-
-	RegisterConverter(TypeTime, TypeTimestamp, func(v interface{}) interface{} {
-		r := v.(time.Time)
-		return *timestamppb.New(r)
-	})
-
-	RegisterConverter(TypeTimestamp, TypeTime, func(v interface{}) interface{} {
-		r := v.(timestamppb.Timestamp)
-		return r.AsTime().Local()
-	})
-
 	RegisterConverter(TypeTime, TypeString, func(v interface{}) interface{} {
 		r := v.(time.Time)
-		return r.Local().Format(TimeFormat)
+		return r.Local().Format(time.RFC3339)
 	})
-
-	RegisterConverter(TypeTimestamp, TypeString, func(v interface{}) interface{} {
-		r := v.(timestamppb.Timestamp)
-		return r.AsTime().Local().Format(TimeFormat)
-	})
-
 }
 
 func getConverter(src reflect.Type, dist reflect.Type) Converter {

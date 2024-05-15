@@ -7,13 +7,14 @@ import (
 // MaxDepth 结构体最大复制深度
 var MaxDepth uint8 = 5
 
-// Copy 从src往dist复制, mapping可选，复制结构体时自定义属性名映射, distName => srcMame
-func Copy(src, dist interface{}, mapping ...map[string]string) {
-	var m map[string]string
-	if len(mapping) > 0 {
-		m = mapping[0]
-	}
-	apply(reflect.ValueOf(src), reflect.ValueOf(dist), 0, m)
+// Copy 从src往dist复制
+func Copy(src, dist interface{}) {
+	apply(reflect.ValueOf(src), reflect.ValueOf(dist), 0, nil)
+}
+
+// CopyWithMapping mapping:复制结构体时自定义属性名映射, distName => srcName
+func CopyWithMapping(src, dist interface{}, mapping map[string]string) {
+	apply(reflect.ValueOf(src), reflect.ValueOf(dist), 0, mapping)
 }
 
 func apply(src reflect.Value, dist reflect.Value, depth uint8, mapping map[string]string) {
@@ -51,10 +52,6 @@ func apply(src reflect.Value, dist reflect.Value, depth uint8, mapping map[strin
 		return
 	}
 
-	// if copyUint(src, dist) {
-	// 	return
-	// }
-
 	if copyBool(src, dist) {
 		return
 	}
@@ -80,16 +77,18 @@ func copyStruct(src reflect.Value, dist reflect.Value, depth uint8, mapping map[
 	if depth >= MaxDepth {
 		return true
 	}
-	r := newNameResolver(src.Type(), mapping)
 	distType := dist.Type()
 	for i := 0; i < distType.NumField(); i++ {
 		fieldType := distType.Field(i)
 		if fieldType.PkgPath != "" {
 			continue
 		}
-		srcName := r.GetName(fieldType.Name)
+		srcName, ok := mapping[fieldType.Name]
 		if srcName == "" {
-			continue
+			if ok {
+				continue
+			}
+			srcName = fieldType.Name
 		}
 		srcField := src.FieldByName(srcName)
 		if !srcField.IsValid() {
@@ -112,13 +111,6 @@ func copyFloat(src reflect.Value, dist reflect.Value) bool {
 func isFloat(k reflect.Kind) bool {
 	return k == reflect.Float32 || k == reflect.Float64
 }
-
-// func copyInt(src reflect.Value, dist reflect.Value) bool {
-// 	if isInt(src.Kind()) && isInt(dist.Kind()) {
-// 		dist.SetInt(src.Int())
-// 	}
-// 	return false
-// }
 
 func copyInt(src reflect.Value, dist reflect.Value) bool {
 	if isInt(src.Kind()) {
@@ -151,13 +143,6 @@ func isInt(k reflect.Kind) bool {
 	return k == reflect.Int || k == reflect.Int8 || k == reflect.Int16 ||
 		k == reflect.Int32 || k == reflect.Int64
 }
-
-// func copyUint(src reflect.Value, dist reflect.Value) bool {
-// 	if isUint(src.Kind()) && isUint(dist.Kind()) {
-// 		dist.SetUint(src.Uint())
-// 	}
-// 	return false
-// }
 
 func isUint(k reflect.Kind) bool {
 	return k == reflect.Uint || k == reflect.Uint8 || k == reflect.Uint16 ||

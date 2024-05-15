@@ -2,23 +2,10 @@ package copier
 
 import (
 	"github.com/stretchr/testify/suite"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"reflect"
 	"testing"
 	"time"
 )
-
-type time1 struct {
-	CreateAt time.Time
-	UpdateAt time.Time
-	DeleteAt uint64
-}
-
-type time2 struct {
-	CreateAt uint64
-	UpdateAt *timestamppb.Timestamp
-	DeleteAt *timestamppb.Timestamp
-}
 
 type CopyTest struct {
 	suite.Suite
@@ -29,87 +16,31 @@ func TestCoPy(t *testing.T) {
 }
 
 func (t *CopyTest) TestCopyTime() {
-	tfmt := "2006-01-02 15:04:05"
-	tm, _ := time.Parse(tfmt, "2022-01-01 00:00:00")
-	tmstr := "2022-01-01 08:00:00"
-	tmint := tm.Unix()
 
 	t.Run("time 2 uint64", func() {
-		src := &time1{CreateAt: time.Unix(123456, 0)}
-		dist := &time2{}
-		Copy(src, dist)
-		t.Equal(dist.CreateAt, uint64(123456))
-		t.NotNil(dist.UpdateAt)
+		src := time.Unix(123456, 0)
+		var dist uint64
+		Copy(src, &dist)
+		t.Equal(uint64(123456), dist)
 
-		t.True(dist.UpdateAt.AsTime().IsZero())
-		t.True(dist.DeleteAt.AsTime().IsZero())
+		src2 := time.Time{}
+		var dist2 uint64
+		Copy(src2, &dist2)
+		t.Equal(uint64(0), dist2)
 	})
 
 	t.Run("uint64 2 time", func() {
-		src := &time2{CreateAt: 1234567}
-		dist := &time1{}
-		Copy(src, dist)
-		t.Equal(dist.CreateAt.Unix(), int64(1234567))
-
-		t.True(dist.UpdateAt.IsZero())
-		t.True(dist.DeleteAt == 0)
-	})
-
-	t.Run("uint64 2 timestamp", func() {
-		src := &time1{DeleteAt: 123456}
-		dist := &time2{}
-		Copy(src, dist)
-		t.Equal(dist.DeleteAt.Seconds, int64(123456))
-
-		t.True(dist.CreateAt == 0)
-		t.True(dist.UpdateAt.AsTime().IsZero())
-	})
-
-	t.Run("time 2 timestamp", func() {
-		src := &time1{UpdateAt: time.Unix(123456, 0)}
-		dist := &time2{}
-		Copy(src, dist)
-		t.Equal(dist.UpdateAt.Seconds, int64(123456))
-
-		t.True(dist.CreateAt == 0)
-		t.True(dist.DeleteAt.AsTime().IsZero())
-	})
-
-	t.Run("timestamp 2 uint64", func() {
-		tmp := time.Unix(123456, 0)
-		src := &time2{DeleteAt: timestamppb.New(tmp)}
-		dist := &time1{}
-		Copy(src, dist)
-		t.Equal(dist.DeleteAt, uint64(123456))
-
-		t.True(dist.CreateAt.IsZero())
-		t.True(dist.UpdateAt.IsZero())
-	})
-
-	t.Run("timestamp 2 time", func() {
-		src := timestamppb.New(tm)
-		var dist time.Time
+		src := uint64(1234567)
+		dist := time.Time{}
 		Copy(src, &dist)
-		t.Equal(dist.Unix(), tmint)
-		t.Equal(dist.Format(tfmt), tmstr)
-	})
-
-	t.Run("timestamp 2 string", func() {
-		src := timestamppb.New(tm)
-		var dist string
-		Copy(src, &dist)
-		t.Equal(dist, tmstr)
+		t.Equal(dist.Unix(), int64(1234567))
 	})
 
 	t.Run("time 2 string", func() {
+		src, _ := time.Parse(time.RFC3339, "2024-05-01T09:08:00+08:00")
 		var dist string
-		Copy(tm, &dist)
-		t.Equal(dist, tmstr)
-
-		src, _ := time.Parse("2006-01-02 15:04:05-0700", "2022-01-01 00:00:00+0800")
-		dist = ""
 		Copy(src, &dist)
-		t.Equal(dist, "2022-01-01 00:00:00")
+		t.Equal(dist, "2024-05-01T09:08:00+08:00")
 	})
 }
 
@@ -136,7 +67,7 @@ type soft struct {
 	Price    float64
 	Subp     *soft
 	Att      attach
-	CreateAT time.Time
+	CreateAt time.Time
 	Tags     []int
 	Version  uint32
 	Time     time.Time
@@ -156,7 +87,7 @@ func (t *CopyTest) TestCopyStruct() {
 			Url:  "inner struct",
 			Type: true,
 		},
-		CreateAT: time.Unix(123456, 0),
+		CreateAt: time.Unix(123456, 0),
 		Tags:     []int{1, 2, 3},
 		Version:  uint32(6),
 		Time:     time.Unix(123456, 0),
@@ -166,27 +97,19 @@ func (t *CopyTest) TestCopyStruct() {
 
 	dist := &project{}
 	Copy(src, dist)
-	t.Equal(dist.Name, "fgh_test")
-	t.Equal(dist.Price, float32(123.56))
+	t.Equal("fgh_test", dist.Name)
+	t.Equal(float32(123.56), dist.Price)
 	t.NotNil(dist.Subp)
-	t.Equal(dist.Subp.Name, "inner pointer")
-	t.Equal(dist.Subp.Price, float32(888))
-	t.Equal(dist.Att.Url, "inner struct")
-	t.Equal(dist.Att.Type, true)
-	t.Equal(dist.CreateAt, uint64(123456))
-	t.Equal(len(dist.Tags), 3)
-	t.Equal(dist.Tags[1], int64(2))
-	t.Equal(dist.Time.Unix(), int64(123456))
-	t.Equal(len(dist.Attaches), 2)
-	t.Equal(dist.ProjectId, int64(0))
-
-	dist = &project{}
-	Copy(src, dist, map[string]string{
-		"ProjectId": "SoftId",
-	})
-	t.Equal(dist.Name, "fgh_test")
-	t.Equal(dist.CreateAt, uint64(123456))
-	t.Equal(dist.ProjectId, int64(666))
+	t.Equal("inner pointer", dist.Subp.Name)
+	t.Equal(float32(888), dist.Subp.Price)
+	t.Equal("inner struct", dist.Att.Url)
+	t.Equal(true, dist.Att.Type)
+	t.Equal(uint64(123456), dist.CreateAt)
+	t.Equal(3, len(dist.Tags))
+	t.Equal(int64(2), dist.Tags[1])
+	t.Equal(int64(123456), dist.Time.Unix())
+	t.Equal(2, len(dist.Attaches))
+	t.Equal(int64(0), dist.ProjectId)
 }
 
 func (t *CopyTest) TestCircleStruct() {
@@ -199,17 +122,37 @@ func (t *CopyTest) TestCircleStruct() {
 	Copy(s1, &dist)
 
 	t.NotNil(dist)
-	t.Equal(dist.Name, "1")
-	t.Equal(dist.Subp.Name, "2")
+	t.Equal("1", dist.Name)
+	t.Equal("2", dist.Subp.Name)
+}
+
+func (t *CopyTest) TestMapping() {
+	src := project{
+		Name:      "namea",
+		ProjectId: 123,
+	}
+
+	var dist *soft
+	CopyWithMapping(src, &dist, map[string]string{
+		"SoftId": "ProjectId",
+		"Name":   "",
+	})
+	t.Equal(int64(123), dist.SoftId)
+	t.Equal("", dist.Name)
+
+	var dist2 *soft
+	CopyWithMapping(src, &dist2, nil)
+	t.Equal(int64(0), dist2.SoftId)
+	t.Equal("namea", dist2.Name)
 }
 
 func (t *CopyTest) TestCopySlice() {
 	src := []*soft{{Name: "s1"}, {Name: "s2"}}
 	var dist []*project
 	Copy(src, &dist)
-	t.Equal(len(dist), 2)
-	t.Equal(dist[0].Name, "s1")
-	t.Equal(dist[1].Name, "s2")
+	t.Equal(2, len(dist))
+	t.Equal("s1", dist[0].Name)
+	t.Equal("s2", dist[1].Name)
 }
 
 func (t *CopyTest) TestRegisterNewRule() {
@@ -221,18 +164,18 @@ func (t *CopyTest) TestRegisterNewRule() {
 	src := time.Unix(1641288319, 0)
 	var dist string
 	Copy(src, &dist)
-	t.Equal(dist, "2022-01-04T17:25:19+08:00")
+	t.Equal("2022-01-04T17:25:19+08:00", dist)
 }
 
 func (t *CopyTest) TestMultiPointer() {
 	src := soft{Name: "TestMultiPointer"}
 	var dist *project
 	Copy(src, &dist)
-	t.Equal(dist.Name, "TestMultiPointer")
+	t.Equal("TestMultiPointer", dist.Name)
 
 	dist = &project{}
 	Copy(src, &dist)
-	t.Equal(dist.Name, "TestMultiPointer")
+	t.Equal("TestMultiPointer", dist.Name)
 }
 
 func (t *CopyTest) TestAddr() {
@@ -243,12 +186,17 @@ func (t *CopyTest) TestAddr() {
 
 	Copy(src, &dist)
 	t.NotNil(dist)
-	t.Equal(dist.Name, "TestAddr")
+	t.Equal("TestAddr", dist.Name)
 
 	dist = &soft{}
 	Copy(src, dist)
 	t.NotNil(dist)
-	t.Equal(dist.Name, "TestAddr")
+	t.Equal("TestAddr", dist.Name)
+
+	var src2 *soft
+	var dist2 *soft
+	Copy(src2, dist2)
+	t.Nil(dist2)
 }
 
 func (t *CopyTest) TestCopyInt() {
@@ -256,26 +204,26 @@ func (t *CopyTest) TestCopyInt() {
 		src := 6
 		var dist uint16
 		Copy(src, &dist)
-		t.Equal(dist, uint16(6))
+		t.Equal(uint16(6), dist)
 
 		src = -32
 		Copy(src, &dist)
-		t.Equal(dist, uint16(0))
+		t.Equal(uint16(0), dist)
 
 		var dist2 int16
 		Copy(src, &dist2)
-		t.Equal(dist2, int16(-32))
+		t.Equal(int16(-32), dist2)
 	})
 
 	t.Run("uint to int and uint16", func() {
 		src := uint32(16)
 		var dist int
 		Copy(src, &dist)
-		t.Equal(dist, int(16))
+		t.Equal(int(16), dist)
 
 		var dist2 uint16
 		Copy(src, &dist2)
-		t.Equal(dist2, uint16(16))
+		t.Equal(uint16(16), dist2)
 	})
 }
 
@@ -297,6 +245,11 @@ func (t *CopyTest) TestCopyBool() {
 		src2 = 0
 		Copy(src2, &dist)
 		t.False(dist)
+
+		src3 := ""
+		var dist3 bool
+		Copy(src3, &dist3)
+		t.False(dist3)
 	})
 
 	t.Run("bool to int", func() {
@@ -305,13 +258,13 @@ func (t *CopyTest) TestCopyBool() {
 		var dist2 uint32
 		Copy(src, &dist)
 		Copy(src, &dist2)
-		t.Equal(dist, 1)
-		t.Equal(dist2, uint32(1))
+		t.Equal(1, dist)
+		t.Equal(uint32(1), dist2)
 
 		src = false
 		Copy(src, &dist)
 		Copy(src, &dist2)
-		t.Equal(dist, 0)
-		t.Equal(dist2, uint32(0))
+		t.Equal(0, dist)
+		t.Equal(uint32(0), dist2)
 	})
 }
